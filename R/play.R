@@ -13,6 +13,10 @@ playUI <- function(id) {
   ns <- NS(id)
   layout_columns(
     card(
+      numericInput(
+        ns("num_words"), "Select the number of words you want to practice", 10)
+      ),
+    card(
       input_switch(ns("to_welsh"), "Guess the Welsh"),
       textOutput(ns("language")),
       textOutput(ns("from_language"))
@@ -37,7 +41,7 @@ playUI <- function(id) {
       actionButton(ns("save_btn"), "Save progress"),
       textOutput(ns("save_msg"))
     ),
-    col_widths = c(6, 6, 12, 12)
+    col_widths = c(6, 6, 6, 6, 12, 12)
   )
 }
 
@@ -71,7 +75,7 @@ playServer <- function(id) {
           dynamic_dict()[
             sample(1:nrow(dynamic_dict()),
                    1,
-                   weight = dynamic_dict()$weight), from_this()
+                   prob = dynamic_dict()$weight), from_this()
             ]
         )
 
