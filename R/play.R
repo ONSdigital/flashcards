@@ -6,46 +6,36 @@ library(stringr)
 library(shinycssloaders)
 library(dplyr)
 
-# guess <- 0
 current_dir <- file.path("D:/", "coding_repos", "flashcards")
-# source("R/flashcards.R")
+dict <- read.csv("D://welsh_dict.csv")
 
 playUI <- function(id) {
   ns <- NS(id)
-  tabPanel(
-    "2 columns",
-
-    column(
-      width = 10,
+  layout_columns(
+    # card(
+    #   input_switch(ns("direction"), "Guess the Welsh")
+    # ),
+    card(
       # hit button to display the next word
       actionButton(ns("button"), "Next word"),
-      textOutput(ns("curr_word")),
-
       actionButton(ns("button2"), "Get answer"),
+      actionButton(ns("right_button"), "Right :)"),
+      actionButton(ns("wrong_button"), "Wrong :("),
+     ),
+    card(
+      textOutput(ns("curr_word")),
       textOutput(ns("translation")),
 
-      tableOutput(ns("test")),
-
-      fluidRow(
-        # state whether your guess was correct
-        radioButtons(ns("result"), "choose one:",
-                     choiceNames = list(
-                       "reset",
-                       "right",
-                       "wrong"
-                       ),
-                     choiceValues = list(
-                       0, 1, -1
-                     )
-        ),
-        textOutput(ns("value"))
-
-        # end of fluidRow:
-      )
-      # end of column (width 10):
     ),
-    p("")
-
+    card(
+      textOutput(ns("complete")),
+      DTOutput(ns("test"))
+    ),
+    card(
+      actionButton(ns("save_btn"), "Save progress"),
+      textOutput(ns("save_msg"))
+    ),
+    col_widths = c(6, 6, 12, 12)
   )
 }
 
@@ -55,46 +45,29 @@ playServer <- function(id) {
 
     function(input, output, session) {
 
-      dynamic_dict <- reactiveVal({
-        data.frame(
-          welsh = c(
-            "digon",
-            "cymoedd",
-             "cymryd",
-             "cynnwys",
-             "trefnu",
-             "yn erbyn",
-             "o'r gorau",
-             "hysbyseb",
-             "fel arfer"
-          ),
-          english = c(
-            "enough",
-            "valleys",
-             "to take",
-             "to include",
-             "to organise",
-             "against",
-             "ok, alright",
-             "advert",
-             "usually"
-          ),
-          wrong = 0,
-          right = 0,
-          prob = 0.5
-        )}
-      )
+      dynamic_dict <- reactiveVal({dict})
 
       curr_word <- reactiveVal(as.character())
       # translation <- reactiveVal(NULL)
+      language <- reactiveVal(as.character())
 
+      # observeEvent(input$direction, {
+      #   if (input$direction == TRUE) {
+      #     language() <- "english"
+      #   } else {
+      #     language() <- "welsh"
+      #   }
+      # })
 
       # hit button for next word
       observeEvent(input$button, {
-        curr_word(dynamic_dict()[sample(1:nrow(dynamic_dict()),
-                                        1,
-                                        prob = dynamic_dict()$prob), "welsh"]
-                  )
+        curr_word(
+          dynamic_dict()[
+            sample(1:nrow(dynamic_dict()),
+                   1,
+                   prob = dynamic_dict()$prob), "welsh"
+            ]
+        )
 
         output$curr_word <- renderText({curr_word()})
 
@@ -105,118 +78,119 @@ playServer <- function(id) {
         curr_word <- curr_word()
         translation <- dynamic_dict()[dynamic_dict()$welsh==curr_word(), "english"]
         output$translation <- renderText(translation)
+        output$complete <- renderText("")
       })
 
-      # update the dynamic_dict
-      observeEvent(input$result, {
+      # update the dynamic_dict with a correct answer
+      observeEvent( input$right_button, {
+        output$curr_word <- renderText("")
+        output$translation <- renderText("")
 
-        if (input$result != 0){
+        probability <- dynamic_dict() %>%
+          filter(welsh==curr_word()) %>%
+          pull(prob)
 
-          probability <- dynamic_dict() %>%
-            filter(welsh==curr_word()) %>%
-            pull(prob)
+        dynamic_dict(
+          dynamic_dict() %>%
+            mutate(right =
+                     ifelse(
+                       welsh == curr_word(),
+                       right + 1,
+                       right
+                     )
+            )
+        )
 
-
-          if (input$result == -1) {
-
-            dynamic_dict(
-              dynamic_dict() %>%
-                mutate(wrong =
-                         ifelse(
-                           welsh == curr_word(),
-                           wrong + 1,
-                           wrong
-                         )
+        if (probability > 0.2) {
+          dynamic_dict(
+            mutate(
+              dynamic_dict(),
+              prob =
+                ifelse(
+                  welsh == curr_word(),
+                  round(prob - 1/5, 1),
+                  round(prob, 1)
                 )
             )
-
-          } else if (input$result == 1) {
-
-            dynamic_dict(
-              dynamic_dict() %>%
-                mutate(right =
-                         ifelse(
-                           welsh == curr_word(),
-                           right + 1,
-                           right
-                         )
-                )
-            )
+          )
 
 
-          }
+        } else if (probability <= 0.2) {
 
-            if (probability > 0.2) {
-              dynamic_dict(
-                mutate(
-                  dynamic_dict(),
-                  prob =
-                    ifelse(
-                      welsh == curr_word(),
-                      prob - as.numeric(input$result)/5,
-                      prob
-                    )
-                )
+          dynamic_dict(
+            dynamic_dict() %>%
+              mutate(prob =
+                       ifelse(
+                         welsh == curr_word(),
+                         0,
+                         prob
+                       )
               )
-
-
-            } else if (probability <= 0.2) {
-
-              dynamic_dict(
-                dynamic_dict() %>%
-                  mutate(prob =
-                           ifelse(
-                             welsh == curr_word(),
-                             0,
-                             prob
-                           )
-                  )
-              )
-            }
-          output$test <- renderTable(dynamic_dict())
-
+          )
         }
+        if (sum(dynamic_dict()$prob) < 0.2) {
+          output$complete <- renderText(
+            "Done! All words marked as high confidence. Probabilities reset based on count of guesses.")
+          dynamic_dict(
+              mutate(dynamic_dict(),
+                   guesses = right + wrong,
+                   prob = round(1-right/max(guesses), 1),
+                   right = 0,
+                   wrong = 0) %>%
+              select(-guesses)
+          )
+        }
+        summary <- dynamic_dict() %>%
+          select(-english)
+        output$test <- renderDT(summary, options = list(lengthChange = FALSE))
+
       })
 
-      # # state whether your guess was correct
-      # output$value <- renderText({
-      #   paste("Proability: ",
-      #         probability
-      #   )
-      # })
+      # update the dict with a wrong answer
+      observeEvent( input$wrong_button, {
 
-      }
+        output$curr_word <- renderText("")
+        output$translation <- renderText("")
+
+        probability <- dynamic_dict() %>%
+          filter(welsh==curr_word()) %>%
+          pull(prob)
+
+        dynamic_dict(
+          dynamic_dict() %>%
+            mutate(wrong =
+                     ifelse(
+                       welsh == curr_word(),
+                       wrong + 1,
+                       wrong
+                     )
+            )
+        )
+
+        dynamic_dict(
+          mutate(
+            dynamic_dict(),
+            prob =
+              ifelse(
+                welsh == curr_word(),
+                round(prob + 1/5, 1),
+                prob
+              )
+          )
+        )
+
+        output$test <- renderDT(dynamic_dict(), options = list(lengthChange = FALSE))
+
+      })
+      observeEvent(input$save_btn, {
+        write.csv(dynamic_dict(), "D://welsh_dict.csv", row.names = FALSE)
+        output$save_msg <- renderText("dictionary saved in D://welsh_dict.csv")
+      })
 
 
-    # function() {
-    #   response <- 0
-    #   while (response != "stop" & sum(dynamic_dict$prob) > 0) {
-    #     word <- dynamic_dict[sample(1:nrow(dynamic_dict), 1, prob = dynamic_dict$prob), "welsh"]
-    #     print(word)
-    #     ready <- readline(prompt="hit any key when you are ready for the translation: ")
-    #     if (!is.na(ready)) {
-    #       translation <- dynamic_dict[dynamic_dict$welsh==word, "english"]
-    #       print(translation)
-    #       ready <- NA
-    #     }
-    #     prob <- dynamic_dict$prob[dynamic_dict$welsh==word]
-    #
-    #     response <- readline(prompt="correct (1) or incorrect (-1)?: ")
-    #
-    #     if (response == -1) {
-    #       dynamic_dict$wrong[dynamic_dict$welsh==word] <- dynamic_dict$wrong[dynamic_dict$welsh==word] + 1
-    #     } else {
-    #       dynamic_dict$right[dynamic_dict$welsh==word] <- dynamic_dict$right[dynamic_dict$welsh==word] + 1
-    #     }
-    #
-    #     if (prob > 0.2) {
-    #       dynamic_dict$prob[dynamic_dict$welsh==word] <- prob - as.numeric(response)/5
-    #     } else {
-    #       dynamic_dict$prob[dynamic_dict$welsh==word] <- 0
-    #     }
-    #   }
-    #   print(dynamic_dict)
-    # }
+    }
+
+
 
   )
 }
