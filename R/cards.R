@@ -36,9 +36,9 @@ cardsUI <- function(id) {
       textInput(ns("welsh"), "Enter Welsh word"),
       textInput(ns("english"), "Enter English translation"),
       numericInput(ns("prob"),
-                   "Confidence with word (0.9: v. high, 0.1: v. low):",
+                   "Confidence with word (1: full, 0: none):",
                    0.5,
-                   min = 0.1, max = 0.9, step = 0.1),
+                   min = 0, max = 1, step = 0.1),
       actionButton(ns("add_btn"), "Add to dictionary"),
     ),
     card(
@@ -65,7 +65,9 @@ cardsServer <- function(id) {
             english = input$english,
             wrong = 0,
             right = 0,
-            prob = round(1-input$prob, 1)
+            prob = ifelse(input$prob == 1,
+                          round(1.1-input$prob, 1),
+                          round(1-input$prob, 1))
             ),
           dict()
           )
