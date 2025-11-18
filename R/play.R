@@ -71,7 +71,7 @@ playServer <- function(id) {
           dynamic_dict()[
             sample(1:nrow(dynamic_dict()),
                    1,
-                   prob = dynamic_dict()$prob), "welsh"
+                   prob = dynamic_dict()$prob), from_this()
             ]
         )
 
@@ -83,7 +83,10 @@ playServer <- function(id) {
       # hit button for correct answer
       observeEvent(input$button2, {
         curr_word <- curr_word()
-        translation <- dynamic_dict()[dynamic_dict()$welsh==curr_word(), "english"]
+        translation <- dynamic_dict() %>%
+          filter(!!sym(from_this()) == curr_word()) %>%
+          select(!!sym(to_this())) %>%
+          pull(!!sym(to_this()))
         output$translation <- renderText(translation)
         output$complete <- renderText("")
       })
@@ -94,14 +97,14 @@ playServer <- function(id) {
         output$translation <- renderText("")
 
         probability <- dynamic_dict() %>%
-          filter(welsh==curr_word()) %>%
+          filter(!!sym(from_this())==curr_word()) %>%
           pull(prob)
 
         dynamic_dict(
           dynamic_dict() %>%
             mutate(right =
                      ifelse(
-                       welsh == curr_word(),
+                       !!sym(from_this()) == curr_word(),
                        right + 1,
                        right
                      )
@@ -114,7 +117,7 @@ playServer <- function(id) {
               dynamic_dict(),
               prob =
                 ifelse(
-                  welsh == curr_word(),
+                  !!sym(from_this()) == curr_word(),
                   round(prob - 1/5, 1),
                   round(prob, 1)
                 )
@@ -128,7 +131,7 @@ playServer <- function(id) {
             dynamic_dict() %>%
               mutate(prob =
                        ifelse(
-                         welsh == curr_word(),
+                         !!sym(from_this()) == curr_word(),
                          0,
                          prob
                        )
@@ -148,7 +151,7 @@ playServer <- function(id) {
           )
         }
         summary <- dynamic_dict() %>%
-          select(-english)
+          select(-!!sym(to_this()))
         output$test <- renderDT(summary, options = list(lengthChange = FALSE))
 
       })
@@ -160,14 +163,14 @@ playServer <- function(id) {
         output$translation <- renderText("")
 
         probability <- dynamic_dict() %>%
-          filter(welsh==curr_word()) %>%
+          filter(!!sym(from_this())==curr_word()) %>%
           pull(prob)
 
         dynamic_dict(
           dynamic_dict() %>%
             mutate(wrong =
                      ifelse(
-                       welsh == curr_word(),
+                       !!sym(from_this()) == curr_word(),
                        wrong + 1,
                        wrong
                      )
@@ -179,14 +182,16 @@ playServer <- function(id) {
             dynamic_dict(),
             prob =
               ifelse(
-                welsh == curr_word(),
+                !!sym(from_this()) == curr_word(),
                 round(prob + 1/5, 1),
                 prob
               )
           )
         )
 
-        output$test <- renderDT(dynamic_dict(), options = list(lengthChange = FALSE))
+        summary <- dynamic_dict() %>%
+          select(-!!sym(to_this()))
+        output$test <- renderDT(summary, options = list(lengthChange = FALSE))
 
       })
       observeEvent(input$save_btn, {
