@@ -71,7 +71,7 @@ playServer <- function(id) {
           dynamic_dict()[
             sample(1:nrow(dynamic_dict()),
                    1,
-                   prob = dynamic_dict()$prob), from_this()
+                   weight = dynamic_dict()$weight), from_this()
             ]
         )
 
@@ -98,7 +98,7 @@ playServer <- function(id) {
 
         probability <- dynamic_dict() %>%
           filter(!!sym(from_this())==curr_word()) %>%
-          pull(prob)
+          pull(weight)
 
         dynamic_dict(
           dynamic_dict() %>%
@@ -115,11 +115,11 @@ playServer <- function(id) {
           dynamic_dict(
             mutate(
               dynamic_dict(),
-              prob =
+              weight =
                 ifelse(
                   !!sym(from_this()) == curr_word(),
-                  round(prob - 1/5, 1),
-                  round(prob, 1)
+                  round(weight - 1/5, 1),
+                  round(weight, 1)
                 )
             )
           )
@@ -129,22 +129,22 @@ playServer <- function(id) {
 
           dynamic_dict(
             dynamic_dict() %>%
-              mutate(prob =
+              mutate(weight =
                        ifelse(
                          !!sym(from_this()) == curr_word(),
                          0,
-                         prob
+                         weight
                        )
               )
           )
         }
-        if (sum(dynamic_dict()$prob) < 0.2) {
+        if (sum(dynamic_dict()$weight) < 0.2) {
           output$complete <- renderText(
             "Done! All words marked as high confidence. Probabilities reset based on count of guesses.")
           dynamic_dict(
               mutate(dynamic_dict(),
                    guesses = right + wrong,
-                   prob = round(1-right/max(guesses), 1),
+                   weight = round(1-right/max(guesses), 1),
                    right = 0,
                    wrong = 0) %>%
               select(-guesses)
@@ -164,7 +164,7 @@ playServer <- function(id) {
 
         probability <- dynamic_dict() %>%
           filter(!!sym(from_this())==curr_word()) %>%
-          pull(prob)
+          pull(weight)
 
         dynamic_dict(
           dynamic_dict() %>%
@@ -180,11 +180,11 @@ playServer <- function(id) {
         dynamic_dict(
           mutate(
             dynamic_dict(),
-            prob =
+            weight =
               ifelse(
                 !!sym(from_this()) == curr_word(),
-                round(prob + 1/5, 1),
-                prob
+                round(weight + 1/5, 1),
+                weight
               )
           )
         )
