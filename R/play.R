@@ -12,9 +12,11 @@ dict <- read.csv("D://welsh_dict.csv")
 playUI <- function(id) {
   ns <- NS(id)
   layout_columns(
-    # card(
-    #   input_switch(ns("direction"), "Guess the Welsh")
-    # ),
+    card(
+      input_switch(ns("to_welsh"), "Guess the Welsh"),
+      textOutput(ns("language")),
+      textOutput(ns("from_language"))
+    ),
     card(
       # hit button to display the next word
       actionButton(ns("button"), "Next word"),
@@ -48,16 +50,20 @@ playServer <- function(id) {
       dynamic_dict <- reactiveVal({dict})
 
       curr_word <- reactiveVal(as.character())
-      # translation <- reactiveVal(NULL)
-      language <- reactiveVal(as.character())
+      from_this <- reactiveVal()
+      to_this <- reactiveVal()
 
-      # observeEvent(input$direction, {
-      #   if (input$direction == TRUE) {
-      #     language() <- "english"
-      #   } else {
-      #     language() <- "welsh"
-      #   }
-      # })
+      observeEvent(input$to_welsh, {
+        if (input$to_welsh == TRUE) {
+          to_this <- to_this("welsh")
+          from_this <- from_this("english")
+
+        } else  if (input$to_welsh == FALSE){
+          to_this <- to_this("english")
+          from_this <-from_this("welsh")
+        }
+        output$language <- renderText({paste0("to: ", to_this())})
+      })
 
       # hit button for next word
       observeEvent(input$button, {
@@ -70,6 +76,7 @@ playServer <- function(id) {
         )
 
         output$curr_word <- renderText({curr_word()})
+        output$from_language <- renderText({paste("from ", from_this())})
 
       })
 
