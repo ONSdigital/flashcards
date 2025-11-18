@@ -24,7 +24,7 @@
 #   ),
 #   wrong = 0,
 #   right = 0,
-#   prob = 0.5
+#   weight = 0.5
 # )
 # write.csv(welsh_dict, "D://welsh_dict.csv", row.names = FALSE)
 dict <- read.csv("D://welsh_dict.csv")
@@ -35,7 +35,7 @@ cardsUI <- function(id) {
     card(
       textInput(ns("welsh"), "Enter Welsh word"),
       textInput(ns("english"), "Enter English translation"),
-      numericInput(ns("prob"),
+      numericInput(ns("weight"),
                    "Confidence with word (1: full, 0: none):",
                    0.5,
                    min = 0, max = 1, step = 0.1),
@@ -65,9 +65,9 @@ cardsServer <- function(id) {
             english = input$english,
             wrong = 0,
             right = 0,
-            prob = ifelse(input$prob == 1,
-                          round(1.1-input$prob, 1),
-                          round(1-input$prob, 1))
+            weight = ifelse(input$weight == 1,
+                          round(1.1-input$weight, 1),
+                          round(1-input$weight, 1))
             ),
           dict()
           )
