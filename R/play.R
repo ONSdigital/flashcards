@@ -14,17 +14,21 @@ playUI <- function(id) {
   layout_columns(
     card(
       numericInput(
-        ns("num_words"), "Select the number of words you want to practice", 10)
+        ns("num_words"), "Select the number of words you want to practice", 10),
+      sliderInput(
+        ns("set_speed"), "how many repeats do you want? 1=few, 8=many", 1, 8, 5
+      )
       ),
     card(
       input_switch(ns("to_welsh"), "Guess the Welsh"),
       textOutput(ns("language")),
-      textOutput(ns("from_language"))
+      textOutput(ns("from_language")),
+      textOutput(ns("set_speed"))
     ),
     card(
       # hit button to display the next word
       actionButton(ns("button"), "Next word"),
-      actionButton(ns("button2"), "Get answer"),
+      actionButton(ns("assess_btn"), "Get answer"),
       actionButton(ns("right_button"), "Right :)"),
       actionButton(ns("wrong_button"), "Wrong :("),
      ),
@@ -51,11 +55,18 @@ playServer <- function(id) {
 
     function(input, output, session) {
 
-      dynamic_dict <- reactiveVal({dict})
+      dynamic_dict <- reactiveVal({
+        distinct(dict)
+        })
 
       curr_word <- reactiveVal(as.character())
       from_this <- reactiveVal()
       to_this <- reactiveVal()
+      speed <- reactiveVal()
+
+      observeEvent(input$set_speed, {
+        speed <- speed(input$set_speed + 1)
+      })
 
       observeEvent(input$to_welsh, {
         if (input$to_welsh == TRUE) {
@@ -81,11 +92,14 @@ playServer <- function(id) {
 
         output$curr_word <- renderText({curr_word()})
         output$from_language <- renderText({paste("from ", from_this())})
+        output$set_speed <- renderText(
+          paste0("speed = ", as.character(speed()))
+                 )
 
       })
 
       # hit button for correct answer
-      observeEvent(input$button2, {
+      observeEvent(input$assess_btn, {
         curr_word <- curr_word()
         translation <- dynamic_dict() %>%
           filter(!!sym(from_this()) == curr_word()) %>%
@@ -96,7 +110,7 @@ playServer <- function(id) {
       })
 
       # update the dynamic_dict with a correct answer
-      observeEvent( input$right_button, {
+      observeEvent(input$right_button, {
         output$curr_word <- renderText("")
         output$translation <- renderText("")
 
@@ -115,21 +129,21 @@ playServer <- function(id) {
             )
         )
 
-        if (probability > 0.2) {
+        if (probability > 1/speed()) {
           dynamic_dict(
             mutate(
               dynamic_dict(),
               weight =
                 ifelse(
                   !!sym(from_this()) == curr_word(),
-                  round(weight - 1/5, 1),
+                  round(weight - 1/speed(), 1),
                   round(weight, 1)
                 )
             )
           )
 
 
-        } else if (probability <= 0.2) {
+        } else {
 
           dynamic_dict(
             dynamic_dict() %>%
@@ -142,13 +156,15 @@ playServer <- function(id) {
               )
           )
         }
-        if (sum(dynamic_dict()$weight) < 0.2) {
+        if (sum(dynamic_dict()$weight) <= 1/speed()) {
           output$complete <- renderText(
             "Done! All words marked as high confidence. Probabilities reset based on count of guesses.")
           dynamic_dict(
               mutate(dynamic_dict(),
                    guesses = right + wrong,
-                   weight = round(1-right/max(guesses), 1),
+                   weight = ifelse(max(guesses) == 1, 0.5,
+                                   round(1-right/max(guesses), 1)
+                                   ),
                    right = 0,
                    wrong = 0) %>%
               select(-guesses)
@@ -187,7 +203,7 @@ playServer <- function(id) {
             weight =
               ifelse(
                 !!sym(from_this()) == curr_word(),
-                round(weight + 1/5, 1),
+                round(weight + 1/speed(), 1),
                 weight
               )
           )
@@ -198,6 +214,7 @@ playServer <- function(id) {
         output$test <- renderDT(summary, options = list(lengthChange = FALSE))
 
       })
+
       observeEvent(input$save_btn, {
         write.csv(dynamic_dict(), "D://welsh_dict.csv", row.names = FALSE)
         output$save_msg <- renderText("dictionary saved in D://welsh_dict.csv")
