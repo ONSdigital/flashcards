@@ -16,10 +16,12 @@ playUI <- function(id) {
     card(
       numericInput(
         ns("num_words"),
-        "Number of least known words to practice (default is all):", row_count),
-      sliderInput(
-        ns("set_speed"), "how many repeats do you want? 1=few, 8=many", 1, 8, 5
-      ),
+        "Number of least known words to practice (default is all):", row_count,
+        min = 0, max = row_count),
+      actionButton(ns("set_words"), "set words"),
+      # sliderInput(
+      #   ns("set_speed"), "how many repeats do you want? 1=few, 8=many", 1, 8, 5
+      # ),
       input_switch(ns("to_welsh"), "Guess the Welsh")
       ),
     card(
@@ -37,13 +39,11 @@ playUI <- function(id) {
     card(
       textOutput(ns("timer")),
       textOutput(ns("complete")),
-      DTOutput(ns("test"))
+      actionButton(ns("update_btn"), "Save progress"),
+      textOutput(ns("update_msg")),
+      DTOutput(ns("table"))
     ),
-    card(
-      actionButton(ns("save_btn"), "Save progress"),
-      textOutput(ns("save_msg"))
-    ),
-    col_widths = c(12, 6, 6, 12, 12)
+    col_widths = c(12, 6, 6, 12)
   )
 }
 
@@ -62,16 +62,22 @@ playServer <- function(id) {
       to_this <- reactiveVal()
       speed <- reactiveVal()
 
-      observeEvent(input$num_words, {
+      observeEvent(input$set_words, {
         dynamic_dict <- dynamic_dict(
           slice_max(dynamic_dict(), weight, n = input$num_words)
         )
-
+        if (nrow(dynamic_dict()) > input$num_words) {
+          dynamic_dict <- dynamic_dict(
+            arrange(dynamic_dict(), weight) %>%
+              slice_head(n = input$num_words)
+          )
+        }
+        output$table <- renderDT(dynamic_dict(), options = list(lengthChange = FALSE))
       })
 
-      observeEvent(input$set_speed, {
-        speed <- speed(input$set_speed + 1)
-      })
+      # observeEvent(input$set_speed, {
+      #   speed <- speed(input$set_speed + 1)
+      # })
 
       observeEvent(input$to_welsh, {
         if (input$to_welsh == TRUE) {
@@ -115,8 +121,7 @@ playServer <- function(id) {
 
       # update the dynamic_dict with a correct answer
       observeEvent(input$right_button, {
-        # output$curr_word <- renderText("")
-        # output$translation <- renderText("")
+
         output$result <- renderText("")
 
         probability <- dynamic_dict() %>%
@@ -134,14 +139,14 @@ playServer <- function(id) {
             )
         )
 
-        if (probability > 1/speed()) {
+        if (probability > 0.3) {
           dynamic_dict(
             mutate(
               dynamic_dict(),
               weight =
                 ifelse(
                   !!sym(from_this()) == curr_word(),
-                  round(weight - 1/speed(), 1),
+                  round(weight - 0.3, 1),
                   round(weight, 1)
                 )
             )
@@ -161,7 +166,7 @@ playServer <- function(id) {
               )
           )
         }
-        if (sum(dynamic_dict()$weight) < 1/speed()) {
+        if (sum(dynamic_dict()$weight) < 0.3) {
           output$complete <- renderText(
             "Done! All words marked as high confidence. Probabilities reset based on count of guesses.")
 
@@ -171,13 +176,15 @@ playServer <- function(id) {
           wrong_equal = length(unique_wrong_counts) == 1
 
           dynamic_dict(
-              mutate(dynamic_dict(),
-                   guesses = right + wrong,
-                   weight = ifelse(all(wrong_equal, right_equal),
-                                   0.5,
-                                   round(1-right/max(guesses), 1)),
-                   right = 0,
-                   wrong = 0) %>%
+            dynamic_dict() %>%
+              rowwise() %>%
+              mutate(guesses = right + wrong,
+                     weight = ifelse(all(wrong_equal, right_equal),
+                                     0.5,
+                                     round(1-(right/max(guesses)), 1)),
+                     right = 0,
+                     wrong = 0) %>%
+              ungroup() %>%
               select(-guesses)
           )
         }
@@ -188,7 +195,7 @@ playServer <- function(id) {
           paste0("Timer: ", sum(dynamic_dict()$weight))
         )
         output$result <- renderText("Well done!")
-        output$test <- renderDT(summary, options = list(lengthChange = FALSE))
+        output$table <- renderDT(summary, options = list(lengthChange = FALSE))
 
       })
 
@@ -212,35 +219,50 @@ playServer <- function(id) {
             )
         )
 
-        dynamic_dict(
-          mutate(
-            dynamic_dict(),
-            weight =
-              ifelse(
-                !!sym(from_this()) == curr_word(),
-                round(weight + 1/speed(), 1),
-                weight
-              )
+        # constrain the weight to 1
+        if (probability < 0.7) {
+          dynamic_dict(
+            mutate(
+              dynamic_dict(),
+              weight =
+                ifelse(
+                  !!sym(from_this()) == curr_word(),
+                  round(weight + 0.3, 1),
+                  weight
+                )
+            )
           )
-        )
+        } else {
+          dynamic_dict(
+            mutate(
+              dynamic_dict(),
+              weight =
+                ifelse(
+                  !!sym(from_this()) == curr_word(),
+                  1,
+                  weight
+                )
+            )
+          )
+        }
 
         summary <- dynamic_dict() %>%
           select(-!!sym(to_this()))
 
         output$timer <- renderText(
-          paste0("Total left (0 = none, 1 = all): ", sum(dynamic_dict()$weight))
+          paste0("Timer: ", sum(dynamic_dict()$weight))
                  )
         output$result <- renderText("Better luck next time")
-        output$test <- renderDT(summary, options = list(lengthChange = FALSE))
+        output$table <- renderDT(summary, options = list(lengthChange = FALSE))
 
       })
 
-      observeEvent(input$save_btn, {
+      observeEvent(input$update_btn, {
         if (row_count == nrow(dynamic_dict())) {
           write.csv(dynamic_dict(), "D://welsh_dict.csv", row.names = FALSE)
-        output$save_msg <- renderText("dictionary saved in D://welsh_dict.csv")
+          output$update_msg <- renderText("dictionary saved in D://welsh_dict.csv")
         } else {
-          output$save_msg <- renderText("dictionary not saved because only a subset were practiced")
+          output$update_msg <- renderText("dictionary not saved because only a subset were practiced")
 
         }
 
