@@ -173,7 +173,7 @@ playServer <- function(id) {
           dynamic_dict(
               mutate(dynamic_dict(),
                    guesses = right + wrong,
-                   weight = ifelse(all(all_equal, right_equal),
+                   weight = ifelse(all(wrong_equal, right_equal),
                                    0.5,
                                    round(1-right/max(guesses), 1)),
                    right = 0,
@@ -182,8 +182,7 @@ playServer <- function(id) {
           )
         }
         summary <- dynamic_dict() %>%
-          select(-!!sym(to_this())) #%>%
-          # filter(!!sym(from_this()) == current_word())
+          select(-!!sym(to_this()))
 
         output$timer <- renderText(
           paste0("Timer: ", sum(dynamic_dict()$weight))
@@ -226,8 +225,7 @@ playServer <- function(id) {
         )
 
         summary <- dynamic_dict() %>%
-          select(-!!sym(to_this())) #%>%
-          # filter(!!sym(from_this()) == current_word())
+          select(-!!sym(to_this()))
 
         output$timer <- renderText(
           paste0("Total left (0 = none, 1 = all): ", sum(dynamic_dict()$weight))
@@ -238,8 +236,14 @@ playServer <- function(id) {
       })
 
       observeEvent(input$save_btn, {
-        write.csv(dynamic_dict(), "D://welsh_dict.csv", row.names = FALSE)
+        if (row_count == nrow(dynamic_dict())) {
+          write.csv(dynamic_dict(), "D://welsh_dict.csv", row.names = FALSE)
         output$save_msg <- renderText("dictionary saved in D://welsh_dict.csv")
+        } else {
+          output$save_msg <- renderText("dictionary not saved because only a subset were practiced")
+
+        }
+
       })
 
 
