@@ -1,4 +1,3 @@
-#
 # welsh_dict <- data.frame(
 #   welsh = c(
 #     "cymoedd",
@@ -42,7 +41,10 @@ cardsUI <- function(id) {
       actionButton(ns("add_btn"), "Add to dictionary"),
     ),
     card(
-      actionButton(ns("save_btn"), "Save dictionary")
+      actionButton(ns("save_btn"), "Save dictionary"),
+      textOutput(ns("save_msg")),
+      textOutput(ns("repeat_msg")),
+      textOutput(ns("repeat_suggestion"))
     ),
     card(
       DTOutput(ns("shiny_table"))
@@ -59,19 +61,52 @@ cardsServer <- function(id) {
       dict <- reactiveVal(dict)
 
       observeEvent(input$add_btn, {
-        t = rbind(
-          data.frame(
-            welsh = input$welsh,
-            english = input$english,
-            wrong = 0,
-            right = 0,
-            weight = ifelse(input$weight == 1,
-                          round(1.1-input$weight, 1),
-                          round(1-input$weight, 1))
+        if (
+          all(
+            input$welsh %in% dict()$welsh == FALSE,
+            input$english %in% dict()$english == FALSE
+            )
+        ) {
+          output$repeat_msg <- renderText("")
+          output$repeat_suggestion <- renderText("")
+          output$save_msg <- renderText("")
+
+          updateTextInput(session, "welsh", value = "")
+          updateTextInput(session, "english", value = "")
+          updateNumericInput(session, "weight", value = 0.5)
+
+          t = rbind(
+            data.frame(
+              welsh = input$welsh,
+              english = input$english,
+              wrong = 0,
+              right = 0,
+              weight = ifelse(input$weight == 1,
+                              round(1.1-input$weight, 1),
+                              round(1-input$weight, 1))
             ),
-          dict()
+            dict()
           )
-        dict(t)
+          dict(t)
+
+        } else {
+
+          welsh_in <- input$welsh %in% dict()$welsh
+          english_in <- input$english %in% dict()$english
+          existing <- c()
+          if(welsh_in) {existing <- c(existing, "Welsh")}
+          if(english_in) {existing <- c(existing, "English")}
+          existing_text <- paste0(existing, collapse = (", "))
+
+          output$repeat_msg <- renderText(
+            paste0("There is already an entry for the given: ", existing_text)
+          )
+          output$repeat_suggestion <- renderText(
+            "If the word is slighly different in meaning, edit the translation to reflect the difference."
+            )
+
+        }
+
       })
 
       output$shiny_table <- renderDT({
@@ -84,6 +119,8 @@ cardsServer <- function(id) {
 
       observeEvent(input$save_btn, {
         write.csv(dict(), "D://welsh_dict.csv", row.names = FALSE)
+        output$save_msg <- renderText("dictionary saved in D://welsh_dict.csv")
       })
+
     }
   )}
