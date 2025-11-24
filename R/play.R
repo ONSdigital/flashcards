@@ -11,11 +11,38 @@ dict <- data.frame(
   welsh = NA, english = NA, gender = NA, right = NA, wrong = NA, weight = NA
 )
 
+get_reverse_frequency <- function(dat) {
+  dat <- read.csv("D://welsh_dict.csv")
+
+
+}
+
+show_progress <- function(dat, max_y) {
+  weight_counts <- dat %>%
+    mutate(inverse_weight = 1 - weight) %>%
+    group_by(inverse_weight) %>%
+    count()
+
+  freq <- weight_counts %>%
+    mutate(proportion = ifelse(
+      n > 0,
+      n/sum(weight_counts$n),
+      0
+      ))
+
+  ggplot(data = freq, aes(x = inverse_weight)) +
+    geom_col(aes(y = proportion), fill = "darkgreen") +
+    xlim(0, 1) + ylim(0,1) +
+    ggtitle("words at 1 on the x axis are done") +
+    theme_classic()
+
+}
+
 playUI <- function(id) {
   ns <- NS(id)
   layout_columns(
     card(
-      textInput(ns("dict_path"), NULL, "D://welsh.csv"),
+      textInput(ns("dict_path"), NULL, "D://welsh_dict.csv"),
     ),
     card(
       actionButton(ns("path_btn"), "Set filepath to get dictionary"),
@@ -46,6 +73,7 @@ playUI <- function(id) {
       textOutput(ns("complete")),
       actionButton(ns("update_btn"), "Save progress"),
       textOutput(ns("update_msg")),
+      plotOutput(ns("progress_plot")),
       DTOutput(ns("table"))
     ),
     col_widths = c(6, 6, 12, 6, 6, 12)
@@ -85,6 +113,9 @@ playServer <- function(id) {
           )
         }
         output$table <- renderDT(dict(), options = list(lengthChange = FALSE))
+        f_plot <- show_progress(dict())
+
+        output$progress_plot <- renderPlot(f_plot)
       })
 
 
@@ -205,7 +236,8 @@ playServer <- function(id) {
         )
         output$result <- renderText("Well done!")
         output$table <- renderDT(summary, options = list(lengthChange = FALSE))
-
+        f_plot <- show_progress(summary)
+        output$progress_plot <- renderPlot(f_plot)
       })
 
       # update the dict with a wrong answer
@@ -264,6 +296,10 @@ playServer <- function(id) {
         output$result <- renderText("Better luck next time")
         output$table <- renderDT(summary, options = list(lengthChange = FALSE))
 
+        f_plot <- show_progress(summary)
+        output$progress_plot <- renderPlot(f_plot)
+
+
       })
 
       observeEvent(input$update_btn, {
@@ -280,8 +316,6 @@ playServer <- function(id) {
         }
 
       })
-
-
     }
 
 
