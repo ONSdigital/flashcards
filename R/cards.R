@@ -1,39 +1,20 @@
-# welsh_dict <- data.frame(
-#   welsh = c(
-#     "cymoedd",
-#     "cymryd",
-#     "cynnwys",
-#     "digon",
-#     "fel arfer",
-#     "hysbyseb",
-#     "o'r gorau",
-#     "trefnu",
-#     "yn erbyn"
-#   ),
-#   english = c(
-#     "valleys",
-#     "to take",
-#     "to include",
-#     "enough",
-#     "usually",
-#     "advert",
-#     "ok, alright",
-#     "to organise",
-#     "against"
-#   ),
-#   wrong = 0,
-#   right = 0,
-#   weight = 0.5
-# )
-# write.csv(welsh_dict, "D://welsh_dict.csv", row.names = FALSE)
-dict <- read.csv("D://welsh_dict.csv")
+dict <- data.frame(
+  welsh = NA, english = NA, gender = NA, right = NA, wrong = NA, weight = NA
+  )
 
 cardsUI <- function(id) {
   ns <- NS(id)
   layout_columns(
     card(
+      textInput(ns("dict_path"), NULL, "D://welsh.csv"),
+    ),
+    card(
+      actionButton(ns("path_btn"), "Set filepath to get dictionary"),
+      ),
+    card(
       textInput(ns("welsh"), "Enter Welsh word"),
       textInput(ns("english"), "Enter English translation"),
+      textInput(ns("gender"), "Enter m (masculine)/ f (feminine) for nouns"),
       numericInput(ns("weight"),
                    "Confidence with word (1: full, 0: none):",
                    0.5,
@@ -47,9 +28,9 @@ cardsUI <- function(id) {
       textOutput(ns("repeat_suggestion"))
     ),
     card(
-      DTOutput(ns("shiny_table"))
+      DTOutput(ns("tab1"))
     ),
-    col_widths = c(12, 12, 12)
+    col_widths = c(6, 6, 12, 12, 12)
   )
 }
 
@@ -58,7 +39,13 @@ cardsServer <- function(id) {
     id,
 
     function(input, output, session) {
+
       dict <- reactiveVal(dict)
+
+      observeEvent(input$path_btn, {
+        file_path <- input$dict_path
+        dict <- dict(read.csv(as.character(file_path)))
+      })
 
       observeEvent(input$add_btn, {
         if (
@@ -79,6 +66,7 @@ cardsServer <- function(id) {
             data.frame(
               welsh = input$welsh,
               english = input$english,
+              gender = input$gender,
               wrong = 0,
               right = 0,
               weight = ifelse(input$weight == 1,
@@ -109,18 +97,33 @@ cardsServer <- function(id) {
 
       })
 
-      output$shiny_table <- renderDT({
+      output$tab1 <- renderDT({
         datatable(
           dict(),
           selection = 'single',
-          options = list(dom = 't')
+          options = list(
+            pageLength = 10
+          ),
+          editable = TRUE
           )
       })
 
-      observeEvent(input$save_btn, {
-        write.csv(dict(), "D://welsh_dict.csv", row.names = FALSE)
-        output$save_msg <- renderText("dictionary saved in D://welsh_dict.csv")
+
+      observeEvent(input$tab1_cell_edit, {
+        info <- input$tab1_cell_edit
+        str(info)
+        modified_data <- dict()
+        modified_data[info$row, info$col] <- info$value
+        dict(modified_data)
       })
 
+
+      observeEvent(input$save_btn, {
+        dict()
+        write.csv(dict(), input$dict_path, row.names = FALSE)
+        output$save_msg <- renderText(
+          paste0("dictionary saved in '", input$dict_path, "'.")
+          )
+      })
     }
   )}
