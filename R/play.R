@@ -24,7 +24,7 @@ playUI <- function(id) {
       textOutput(ns("row_count")),
       numericInput(
         ns("num_words"),
-        "Number of least known words to practice:", NA,
+        "Number of least known words to practice:", ns("row_count"),
         min = 2, max = NA),
       actionButton(ns("set_words"), "set words"),
       input_switch(ns("to_welsh"), "Guess the Welsh")
@@ -58,9 +58,8 @@ playServer <- function(id) {
 
     function(input, output, session) {
 
-      dict <- reactiveVal({
-        distinct(dict)
-        })
+      all_rows <- reactiveVal()
+      dict <- reactiveVal({ distinct(dict) })
       curr_word <- reactiveVal(as.character())
       from_this <- reactiveVal()
       to_this <- reactiveVal()
@@ -71,6 +70,7 @@ playServer <- function(id) {
         file_path <- input$dict_path
         dict <- dict(read.csv(as.character(file_path)))
         row_count <- row_count(nrow(dict()))
+        all_rows <- all_rows(nrow(read.csv(as.character(file_path))))
         output$row_count <- renderText(paste0("max: ", row_count()))
       })
 
@@ -267,7 +267,7 @@ playServer <- function(id) {
       })
 
       observeEvent(input$update_btn, {
-        if (row_count == nrow(dict())) {
+        if (as.numeric(all_rows()) <= nrow(dict())) {
           write.csv(dict(), input$dict_path, row.names = FALSE)
           output$update_msg <- renderText(
             paste0("dictionary saved in '", input$dict_path, "'.")
